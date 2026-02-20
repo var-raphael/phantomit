@@ -28,7 +28,7 @@ function getClient(): Groq {
 }
 
 export async function generateCommitMessage(diff: string, mock = false): Promise<string> {
-  // Mock mode — return a random realistic commit message 
+  // Mock mode — return a random realistic commit message  ahhh
   if (mock) {
     await new Promise(r => setTimeout(r, 800)); // simulate network delay
     return MOCK_MESSAGES[Math.floor(Math.random() * MOCK_MESSAGES.length)];
