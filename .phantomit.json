@@ -2,8 +2,9 @@
   "mode": "interval",
   "interval": 30,
   "lines": 20,
+  "debounce": 8,
   "autoPush": true,
-  "watch": ["src"],
-  "ignore": ["node_modules", ".next", "dist", ".git"],
+  "watch": ["."],
+  "ignore": ["node_modules", ".git"],
   "branch": "main"
 }

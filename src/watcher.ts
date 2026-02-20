@@ -1,8 +1,19 @@
 import chokidar from 'chokidar';
 import path from 'path';
+import fs from 'fs';
+import ignore, { Ignore } from 'ignore';
 import { PhantomitConfig } from './config.js';
 
 type ChangeCallback = (changedFiles: string[]) => void;
+
+function loadGitignore(cwd: string): Ignore {
+  const ig = ignore();
+  const gitignorePath = path.join(cwd, '.gitignore');
+  if (fs.existsSync(gitignorePath)) {
+    ig.add(fs.readFileSync(gitignorePath, 'utf8'));
+  }
+  return ig;
+}
 
 export function startWatcher(
   cwd: string,
@@ -12,11 +23,22 @@ export function startWatcher(
   const watchPaths = config.watch.map((w) => path.join(cwd, w));
   const changedFiles = new Set<string>();
   let batchTimer: ReturnType<typeof setTimeout> | null = null;
+  const debounceMs = (config.debounce ?? 8) * 1000;
+
+  // Load gitignore properly
+  const ig = loadGitignore(cwd);
+
+  // Also add manual ignore patterns from config
+  ig.add(config.ignore);
 
   const watcher = chokidar.watch(watchPaths, {
     ignored: [
-      /(^|[\/\\])\../, // dotfiles
-      ...config.ignore.map((p) => new RegExp(p.replace(/\*/g, '.*'))),
+      /(^|[\/\\])\.\./, // dotfiles
+      (filePath: string) => {
+        const relative = path.relative(cwd, filePath);
+        if (!relative) return false;
+        return ig.ignores(relative);
+      },
     ],
     persistent: true,
     ignoreInitial: true,
@@ -35,18 +57,18 @@ export function startWatcher(
 
   const handleChange = (filePath: string) => {
     const relative = path.relative(cwd, filePath);
+    // Double check with ignore before adding
+    if (ig.ignores(relative)) return;
     changedFiles.add(relative);
 
-    // Debounce — wait 2s of inactivity before triggering
     if (batchTimer) clearTimeout(batchTimer);
-    batchTimer = setTimeout(flush, 2000);
+    batchTimer = setTimeout(flush, debounceMs);
   };
 
   watcher.on('change', handleChange);
   watcher.on('add', handleChange);
   watcher.on('unlink', handleChange);
 
-  // Return cleanup function
   return () => {
     watcher.close();
     if (batchTimer) clearTimeout(batchTimer);

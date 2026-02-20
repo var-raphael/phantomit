@@ -1,2 +1,2 @@
 // random test file
-export const hello = () => console.log('phantomit is alive! ahah');
+export const hello = () => console.log('phantomit is alive!');

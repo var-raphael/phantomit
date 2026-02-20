@@ -11,7 +11,14 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js"
   },
-  "keywords": ["git", "commit", "ai", "automation", "cli", "groq"],
+  "keywords": [
+    "git",
+    "commit",
+    "ai",
+    "automation",
+    "cli",
+    "groq"
+  ],
   "author": "Raphael Samuel (var-raphael)",
   "license": "MIT",
   "dependencies": {
@@ -20,6 +27,7 @@
     "diff": "^8.0.3",
     "dotenv": "^17.3.1",
     "groq-sdk": "^0.37.0",
+    "ignore": "^7.0.5",
     "inquirer": "^13.2.5",
     "ora": "^9.3.0",
     "simple-git": "^3.31.1"

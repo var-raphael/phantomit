@@ -1,22 +1,24 @@
 import fs from 'fs';
 import path from 'path';
 
-export type Mode = 'interval' | 'lines' | 'manual';
+export type Mode = 'interval' | 'lines' | 'manual' | 'on-save';
 
 export interface PhantomitConfig {
   mode: Mode;
-  interval: number;   // minutes — used when mode is 'interval'
-  lines: number;      // lines changed threshold — used when mode is 'lines'
-  autoPush: boolean;  // push after commit or just commit
-  watch: string[];    // dirs/files to watch
-  ignore: string[];   // patterns to ignore
-  branch: string;     // branch to push to
+  interval: number;
+  lines: number;
+  debounce: number;   // seconds to wait after last save before triggering
+  autoPush: boolean;
+  watch: string[];
+  ignore: string[];
+  branch: string;
 }
 
 const DEFAULTS: PhantomitConfig = {
   mode: 'interval',
   interval: 30,
   lines: 20,
+  debounce: 8,
   autoPush: true,
   watch: ['src', 'app', 'lib', 'components', 'pages'],
   ignore: ['node_modules', '.next', 'dist', '.git', '*.log', '.env*'],
