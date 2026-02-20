@@ -28,7 +28,7 @@ function getClient(): Groq {
 }
 
 export async function generateCommitMessage(diff: string, mock = false): Promise<string> {
-  // Mock mode — return a random realistic commit message ahha
+  // Mock mode — return a random realistic commit message ahaha
   if (mock) {
     await new Promise(r => setTimeout(r, 800)); // simulate network delay
     return MOCK_MESSAGES[Math.floor(Math.random() * MOCK_MESSAGES.length)];
@@ -41,7 +41,7 @@ export async function generateCommitMessage(diff: string, mock = false): Promise
   const groq = getClient();
 
   const response = await groq.chat.completions.create({
-    model: 'llama3-8b-8192',
+    model: 'llama-3.1-8b-instant',
     max_tokens: 60,
     temperature: 0.4,
     messages: [
