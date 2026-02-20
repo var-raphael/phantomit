@@ -17,7 +17,7 @@ It watches your project silently in the background, batches your file changes, s
 ## Install
 
 ```bash
-npm install -g phantomit
+npm install -g phantomit-cli
 ```
 
 ---
