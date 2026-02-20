@@ -2,8 +2,6 @@ import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
 dotenv.config();
 
-let client: Groq | null = null;
-
 const MOCK_MESSAGES = [
   'feat(auth): add JWT token validation middleware',
   'fix(api): resolve null pointer in user fetch handler',
@@ -15,32 +13,44 @@ const MOCK_MESSAGES = [
   'docs(readme): update installation and usage instructions',
 ];
 
-function getClient(): Groq {
-  if (client) return client;
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
+// Collect all available keys — supports unlimited GROQ_API_KEY_* pattern
+function getApiKeys(): string[] {
+  const keys: string[] = [];
+
+  // Single key
+  if (process.env.GROQ_API_KEY) keys.push(process.env.GROQ_API_KEY);
+
+  // Any GROQ_API_KEY_* — _1, _2, _10, _100, no limit
+  Object.entries(process.env).forEach(([key, value]) => {
+    if (key.startsWith('GROQ_API_KEY_') && value) keys.push(value);
+  });
+
+  return [...new Set(keys)]; // dedupe
+}
+
+function getRandomKey(): string {
+  const keys = getApiKeys();
+  if (keys.length === 0) {
     throw new Error(
-      'GROQ_API_KEY not found.\nAdd it to your .env file:\nGROQ_API_KEY=your_key_here\n\nOr test without it using: phantomit push --mock'
+      'No GROQ API key found.\nAdd at least one to your .env file:\n\nGROQ_API_KEY=your_key\n\nOr add multiple for rotation:\nGROQ_API_KEY_1=key_one\nGROQ_API_KEY_2=key_two\n...\n\nGet a free key at: https://console.groq.com'
     );
   }
-  client = new Groq({ apiKey });
-  return client;
+  return keys[Math.floor(Math.random() * keys.length)]!;
 }
 
 export async function generateCommitMessage(diff: string, mock = false): Promise<string> {
-  // Mock mode — return a random realistic commit message 
   if (mock) {
-    await new Promise(r => setTimeout(r, 800)); // simulate network delay
-    return MOCK_MESSAGES[Math.floor(Math.random() * MOCK_MESSAGES.length)];
+    await new Promise(r => setTimeout(r, 800));
+    return MOCK_MESSAGES[Math.floor(Math.random() * MOCK_MESSAGES.length)]!;
   }
 
   if (!diff.trim()) return 'chore: minor updates';
 
   const truncated = diff.length > 6000 ? diff.slice(0, 6000) + '\n...(truncated)' : diff;
 
-  const groq = getClient();
+  const client = new Groq({ apiKey: getRandomKey() });
 
-  const response = await groq.chat.completions.create({
+  const response = await client.chat.completions.create({
     model: 'llama-3.1-8b-instant',
     max_tokens: 60,
     temperature: 0.4,
