@@ -179,45 +179,54 @@ async function runWatch(flags: Record<string, string | boolean>, silent = false)
     const modeLabel =
       mode === 'interval' ? `every ${interval} min` :
       mode === 'lines'    ? `every ${lines} lines changed` :
-      mode === 'on-save'  ? 'on save (2s debounce)' : 'manual';
+      mode === 'on-save'  ? `on save (${config.debounce ?? 8}s debounce)` : 'manual';
     console.log(chalk.magenta(`  mode: ${mode}`) + chalk.dim(` — ${modeLabel}`));
     console.log(chalk.dim(`  watching: ${config.watch.join(', ')}`));
     console.log(chalk.dim('  press Ctrl+C to stop\n'));
   }
 
+  // Queue system — never skip, always process in order
   let isCommitting = false;
+  let queued = false;
+
+  const processCommit = async (label: string) => {
+    if (isCommitting) {
+      queued = true; // mark that another commit is waiting
+      return;
+    }
+    isCommitting = true;
+    queued = false;
+    if (!silent) console.log(chalk.dim(`\n  [${new Date().toLocaleTimeString()}] ${label}`));
+    await runCommitFlow(silent);
+    isCommitting = false;
+
+    // If something was queued while we were committing, run it now
+    if (queued) {
+      queued = false;
+      await processCommit('queued changes detected');
+    }
+  };
 
   if (mode === 'interval') {
     setInterval(async () => {
-      if (isCommitting) return;
-      isCommitting = true;
       if (await hasChanges(cwd)) {
-        if (!silent) console.log(chalk.dim(`\n  [${new Date().toLocaleTimeString()}] interval triggered`));
-        await runCommitFlow(silent);
+        await processCommit('interval triggered');
       }
-      isCommitting = false;
     }, interval * 60 * 1000);
 
   } else if (mode === 'lines') {
     const cleanup = startWatcher(cwd, config, async () => {
-      if (isCommitting) return;
       const lineCount = await countChangedLines(cwd);
       if (lineCount >= lines) {
-        isCommitting = true;
-        if (!silent) console.log(chalk.dim(`\n  [${new Date().toLocaleTimeString()}] ${lineCount} lines changed`));
-        await runCommitFlow(silent);
-        isCommitting = false;
+        await processCommit(`${lineCount} lines changed`);
       }
     });
     process.on('SIGINT', () => { cleanup(); process.exit(0); });
 
   } else if (mode === 'on-save') {
     const cleanup = startWatcher(cwd, config, async (files) => {
-      if (isCommitting) return;
-      isCommitting = true;
-      if (!silent) console.log(chalk.dim(`\n  [${new Date().toLocaleTimeString()}] saved: ${files.slice(0, 2).join(', ')}${files.length > 2 ? '...' : ''}`));
-      await runCommitFlow(silent);
-      isCommitting = false;
+      const label = `saved: ${files.slice(0, 2).join(', ')}${files.length > 2 ? '...' : ''}`;
+      await processCommit(label);
     });
     process.on('SIGINT', () => { cleanup(); process.exit(0); });
 
