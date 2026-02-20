@@ -1,0 +1,9 @@
+{
+  "mode": "interval",
+  "interval": 30,
+  "lines": 20,
+  "autoPush": false,
+  "watch": ["src"],
+  "ignore": ["node_modules", ".next", "dist", ".git"],
+  "branch": "master"
+}
