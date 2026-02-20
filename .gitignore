@@ -4,4 +4,4 @@ dist/
 .env
 *.log
 .phantomit.pid
-EOF
+EOFnode_modules/
