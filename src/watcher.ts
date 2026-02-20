@@ -4,7 +4,12 @@ import fs from 'fs';
 import ignore, { Ignore } from 'ignore';
 import { PhantomitConfig } from './config.js';
 
-type ChangeCallback = (changedFiles: string[]) => void;
+export interface FileEvent {
+  type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
+  file: string;
+}
+
+type ChangeCallback = (events: FileEvent[]) => void;
 
 function loadGitignore(cwd: string): Ignore {
   const ig = ignore();
@@ -21,25 +26,21 @@ export function startWatcher(
   onChange: ChangeCallback
 ): () => void {
   const watchPaths = config.watch.map((w) => path.join(cwd, w));
-  const changedFiles = new Set<string>();
+  const eventQueue = new Map<string, FileEvent>(); // keyed by file path — dedupes
   let batchTimer: ReturnType<typeof setTimeout> | null = null;
   const debounceMs = (config.debounce ?? 8) * 1000;
 
-  // Load gitignore properly
   const ig = loadGitignore(cwd);
-
-  // Also add manual ignore patterns from config
   ig.add(config.ignore);
 
+  const isIgnored = (filePath: string): boolean => {
+    const relative = path.relative(cwd, filePath);
+    if (!relative) return false;
+    try { return ig.ignores(relative); } catch { return false; }
+  };
+
   const watcher = chokidar.watch(watchPaths, {
-    ignored: [
-      /(^|[\/\\])\.\./, // dotfiles
-      (filePath: string) => {
-        const relative = path.relative(cwd, filePath);
-        if (!relative) return false;
-        return ig.ignores(relative);
-      },
-    ],
+    ignored: [/(^|[\/\\])\../],
     persistent: true,
     ignoreInitial: true,
     awaitWriteFinish: {
@@ -49,25 +50,27 @@ export function startWatcher(
   });
 
   const flush = () => {
-    if (changedFiles.size === 0) return;
-    const files = Array.from(changedFiles);
-    changedFiles.clear();
-    onChange(files);
+    if (eventQueue.size === 0) return;
+    const events = Array.from(eventQueue.values());
+    eventQueue.clear();
+    onChange(events);
   };
 
-  const handleChange = (filePath: string) => {
+  const handleEvent = (type: FileEvent['type'], filePath: string) => {
+    if (isIgnored(filePath)) return;
     const relative = path.relative(cwd, filePath);
-    // Double check with ignore before adding
-    if (ig.ignores(relative)) return;
-    changedFiles.add(relative);
+    // If same file had multiple events, keep the latest
+    eventQueue.set(relative, { type, file: relative });
 
     if (batchTimer) clearTimeout(batchTimer);
     batchTimer = setTimeout(flush, debounceMs);
   };
 
-  watcher.on('change', handleChange);
-  watcher.on('add', handleChange);
-  watcher.on('unlink', handleChange);
+  watcher.on('add',       (f) => handleEvent('add', f));
+  watcher.on('change',    (f) => handleEvent('change', f));
+  watcher.on('unlink',    (f) => handleEvent('unlink', f));
+  watcher.on('addDir',    (f) => handleEvent('addDir', f));
+  watcher.on('unlinkDir', (f) => handleEvent('unlinkDir', f));
 
   return () => {
     watcher.close();

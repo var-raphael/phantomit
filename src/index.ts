@@ -6,7 +6,7 @@ import { spawn } from 'child_process';
 import chalk from 'chalk';
 import ora from 'ora';
 import { loadConfig, writeDefaultConfig } from './config.js';
-import { startWatcher } from './watcher.js';
+import { startWatcher, FileEvent } from './watcher.js';
 import { generateCommitMessage } from './ai.js';
 import {
   hasChanges, stageAll, getStagedDiff, getUnstagedDiff,
@@ -224,9 +224,16 @@ async function runWatch(flags: Record<string, string | boolean>, silent = false)
     process.on('SIGINT', () => { cleanup(); process.exit(0); });
 
   } else if (mode === 'on-save') {
-    const cleanup = startWatcher(cwd, config, async (files) => {
-      const label = `saved: ${files.slice(0, 2).join(', ')}${files.length > 2 ? '...' : ''}`;
-      await processCommit(label);
+    const cleanup = startWatcher(cwd, config, async (events: FileEvent[]) => {
+      const summary = events.slice(0, 3).map(e => {
+        const icon =
+          e.type === 'add'       ? '✚' :
+          e.type === 'unlink'    ? '✖' :
+          e.type === 'addDir'    ? '📁' :
+          e.type === 'unlinkDir' ? '📁✖' : '✎';
+        return `${icon} ${e.file}`;
+      }).join(', ') + (events.length > 3 ? ` +${events.length - 3} more` : '');
+      await processCommit(summary);
     });
     process.on('SIGINT', () => { cleanup(); process.exit(0); });
 
